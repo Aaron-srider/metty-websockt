@@ -10,22 +10,17 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker
 import io.netty.handler.codec.http.websocketx.WebSocketFrame
 
 
-class test {
-}
-
-
 class WebSocketClientHandler(private val handshaker: WebSocketClientHandshaker) : SimpleChannelInboundHandler<Any?>() {
     @Throws(Exception::class)
     override fun channelActive(ctx: ChannelHandlerContext) {
         handshaker.handshake(ctx.channel())
     }
 
-    @Throws(Exception::class)
     override fun channelRead0(ctx: ChannelHandlerContext, msg: Any?) {
         val ch: Channel = ctx.channel()
         if (!handshaker.isHandshakeComplete) {
             handshaker.finishHandshake(ch, msg as FullHttpResponse?)
-            println("WebSocket Client connected!")
+            println("WebSocket Client connected!, remote: ${ch.remoteAddress()}")
             return
         }
         if (msg is WebSocketFrame) {

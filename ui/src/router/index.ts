@@ -2,6 +2,7 @@ import Vue from 'vue';
 import VueRouter, { RouteConfig } from 'vue-router';
 import HelloWorld from '@/views/HelloWorld.vue';
 import About from '@/views/About.vue';
+import WebSocketView from "@/views/WebSocket.vue";
 Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
@@ -18,6 +19,10 @@ const routes: Array<RouteConfig> = [
         path: '/about',
         name: 'About',
         component: About,
+    },{
+        path: '/websocket',
+        name: 'websocket',
+        component: WebSocketView,
     },
 ];
 

@@ -72,6 +72,8 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
             // Perform actions after WebSocket handshake is completed
             println("WebSocket handshake completed: " + ctx.channel().remoteAddress())
 
+
+
             // You can add your custom logic here
             // For example, send a welcome message to the connected client
             ctx.channel().writeAndFlush(TextWebSocketFrame("Welcome to the WebSocket server!"))
@@ -81,7 +83,6 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
 
     override fun channelActive(ctx: ChannelHandlerContext) {
         log.debug { "connection in: ${ctx.channel().remoteAddress()}" }
-
     }
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: TextWebSocketFrame) {

@@ -34,7 +34,7 @@ class NettyClient {
                         LoggingHandler(),
                         HttpClientCodec(),
                         HttpObjectAggregator(8192),
-                        WebSocketClientHandler(  handshaker),
+                        WebSocketClientHandler(handshaker),
                     )
                 }
             })
