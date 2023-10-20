@@ -9,7 +9,6 @@
 	<description>netty-frame</description>
 	<packaging>pom</packaging>
 	<modules>
-		<module>client</module>
 		<module>base</module>
 		<module>server</module>
 	</modules>

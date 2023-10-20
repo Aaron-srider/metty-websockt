@@ -20,7 +20,7 @@ class TestRunner: CommandLineRunner {
 
     override fun run(vararg args: String?) {
         log.info { "write some here" }
-        ThreadUtil.execAsync { 	NettyServer("127.0.0.1", 8080).run() }
+        ThreadUtil.execAsync { 	NettyServer("0.0.0.0", 8080).run() }
     }
 
 }

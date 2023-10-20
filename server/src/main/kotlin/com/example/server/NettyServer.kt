@@ -2,10 +2,7 @@ package com.example.server
 
 import com.alibaba.fastjson2.JSONObject
 import io.netty.bootstrap.ServerBootstrap
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelInitializer
-import io.netty.channel.EventLoopGroup
-import io.netty.channel.SimpleChannelInboundHandler
+import io.netty.channel.*
 import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
@@ -17,10 +14,8 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler.Ser
 import io.netty.handler.logging.LoggingHandler
 import io.netty.handler.stream.ChunkedWriteHandler
 import mu.KotlinLogging
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 import java.net.InetSocketAddress
-import java.util.UUID
 
 /**
  * Discards any incoming data.
@@ -66,20 +61,36 @@ class NettyServer(private val host: String, private val port: Int) {
     }
 }
 
+class Guest {
+
+    var channel: Channel? = null
+
+    var id: String? = null
+
+    var tempName: String? = null
+
+    var ip: String? = null
+
+    override fun toString(): String {
+        return "GuestImpl(id=$id, tempName=$tempName, ip=$ip)"
+    }
+}
+
+object Room {
+
+    var map: MutableMap<String, MutableMap<String, Guest>> = HashMap()
+
+}
+
 @Component
 class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
 
-    @Autowired
-    lateinit var room: Room
-
     private val log = KotlinLogging.logger {}
 
-    @Throws(java.lang.Exception::class)
     override fun userEventTriggered(ctx: ChannelHandlerContext, evt: Any) {
         if (evt is ServerHandshakeStateEvent
             && evt == ServerHandshakeStateEvent.HANDSHAKE_COMPLETE
         ) {
-
             // Perform actions after WebSocket handshake is completed
             log.debug { "WebSocket handshake completed: " + ctx.channel().remoteAddress() }
             ctx.channel().writeAndFlush(TextWebSocketFrame("Welcome to the WebSocket server!"))
@@ -91,28 +102,141 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
         log.debug { "connection in: ${ctx.channel().remoteAddress()}" }
     }
 
+    override fun channelInactive(ctx: ChannelHandlerContext) {
+
+        var a = ctx.channel().remoteAddress() as InetSocketAddress
+        var remoteIp = a.address.hostAddress
+        var id = ctx.channel().id().toString()
+        log.debug {
+            "leaving: ${remoteIp}, ${id}"
+        }
+
+        var map = Room.map
+        var e = map.get(remoteIp)
+        if (e == null) {
+            log.debug { "no such room" }
+        } else {
+            var ee = e.get(id)
+            if (ee != null) {
+                log.debug { "leaving: ${ee}" }
+                ee.channel?.close()
+                e.remove(id)
+                e.forEach {
+                    var g = it.value.channel
+                    if (g != null) {
+                        g.writeAndFlush(
+                            TextWebSocketFrame(JSONObject.toJSONString(
+                                ProtoMessage().apply {
+                                    this.messageType = "LEAVE"
+                                    this.message = JSONObject.toJSONString(
+                                        object {
+                                            var id = id
+                                        }
+                                    )
+                                }
+                            )))
+                    }
+                    log.debug { "notify roommate for leaving: ${it.value}" }
+                }
+            } else {
+                log.debug { "no such guest" }
+            }
+        }
+    }
+
     override fun channelRead0(ctx: ChannelHandlerContext, msg: TextWebSocketFrame) {
+
         log.debug { "server read: ${msg.text()}" }
+        val remoteAddress = ctx.channel().remoteAddress() as InetSocketAddress
+        var remoteIp = remoteAddress.address.hostAddress
         val protoMessage = JSONObject.parseObject(msg.text(), ProtoMessage::class.java)
         if (protoMessage.messageType == ProtoMessageType.HELLO.name) {
-            var protoMessage = protoMessage.message
-            var protoMessageEntity: Hello = JSONObject.parseObject(protoMessage, Hello::class.java)
+
+            var a =
+                ctx.channel().remoteAddress() as InetSocketAddress
+
+            var ip = a.address.toString()
+            log.debug { "user connected, ip: ${ip}" }
+
+            var msgBody = protoMessage.message
+            var protoMessageEntity: Hello = JSONObject.parseObject(msgBody, Hello::class.java)
             log.debug { "Client HELLO: ${protoMessageEntity}" }
 
-            val remoteAddress = ctx.channel().remoteAddress() as InetSocketAddress
-            var remoteIp = remoteAddress.address.hostAddress
 
-            var newGuest = GuestImpl().apply {
-                this.id = UUID.randomUUID().toString()
+            var newGuest = Guest().apply {
+                this.id = ctx.channel().id().toString()
                 this.tempName = protoMessageEntity.tempName
                 this.ip = remoteIp
+                this.channel = ctx.channel()
             }
 
             log.debug { "Welcome new guest ${newGuest} to the room: ${remoteIp}" }
-            room.put(remoteIp, newGuest)
+            // room.put(remoteIp, newGuest)
 
+            var map = Room.map
+            var e = map.get(remoteIp)
+            if (e == null) {
+                e = mutableMapOf()
+                map.put(remoteIp, e)
+            }
 
-            room.reportSituation()
+            log.debug { "roommates: " }
+            e.forEach {
+                log.debug { it.value }
+            }
+
+            e.forEach {
+                var g = it.value.channel
+                if (g != null) {
+                    g.writeAndFlush(
+                        TextWebSocketFrame(
+                            JSONObject.toJSONString(
+
+                                ProtoMessage().apply {
+                                    this.messageType = "HELLO"
+                                    this.message = msg.text()
+                                })
+                        )
+                    )
+                }
+                log.debug { "notify roommate for coming: ${it.value}" }
+            }
+            e.put(newGuest.id!!, newGuest)
+
+            val toMutableList = e.values.map {
+                HelloBack().apply {
+                    this.id = it.id
+                    this.tempName = it.tempName
+                }
+            }
+
+            var r = ProtoMessage().apply {
+                this.messageType = "HELLO_BACK"
+                this.message = JSONObject.toJSONString(
+                    toMutableList
+                )
+            }
+            ctx.channel().writeAndFlush(TextWebSocketFrame(JSONObject.toJSONString(r)))
+
+            // room.reportSituation()
+        } else if (protoMessage.messageType == "CHAT") {
+            log.debug { "CHAT" }
+
+            var msgBody = protoMessage.message
+            var protoMessageEntity: Chat = JSONObject.parseObject(msgBody, Chat::class.java)
+
+            log.debug { "from ${protoMessageEntity.fromId} to ${protoMessageEntity.toId} msg: ${protoMessageEntity.msg}" }
+
+            var map = Room.map
+            var e = map.get(protoMessageEntity.toId)
+            if (e == null) {
+                log.debug { "no such room" }
+            } else {
+                var to = e.get(protoMessageEntity.toId)
+                if (to != null) {
+                    ctx.channel().writeAndFlush(TextWebSocketFrame(msg.text()))
+                }
+            }
         } else {
             log.warn { "Server can not proccess this kind of msg: ${protoMessage.messageType}" }
         }
@@ -141,5 +265,17 @@ class Hello {
         return "Hello(tempName=$tempName, osFamily=$osFamily, osArch=$osArch, ua=$ua)"
     }
 }
+
+class HelloBack {
+    var id: String? = null
+    var tempName: String? = null
+}
+
+class Chat {
+    var msg: String? = null
+    var fromId: String? = null
+    var toId: String? = null
+}
+
 
 
