@@ -135,8 +135,8 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                                     )
                                 }
                             )))
+                        log.debug { "notify roommate for leaving: ${it.value}" }
                     }
-                    log.debug { "notify roommate for leaving: ${it.value}" }
                 }
             } else {
                 log.debug { "no such guest" }
@@ -144,6 +144,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
         }
     }
 
+    var backMap = mutableMapOf<String, String>()
     override fun channelRead0(ctx: ChannelHandlerContext, msg: TextWebSocketFrame) {
 
         log.debug { "server read: ${msg.text()}" }
@@ -194,14 +195,19 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
 
                                 ProtoMessage().apply {
                                     this.messageType = "HELLO"
-                                    this.message = msg.text()
+                                    this.message = JSONObject.toJSONString(
+                                        object {
+                                            var id = newGuest.id
+                                            var tempName = newGuest.tempName
+                                        }
+                                    )
                                 })
                         )
                     )
                 }
                 log.debug { "notify roommate for coming: ${it.value}" }
             }
-            e.put(newGuest.id!!, newGuest)
+
 
             val toMutableList = e.values.map {
                 HelloBack().apply {
@@ -210,37 +216,88 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                 }
             }
 
+            var me = object {
+                var id = newGuest.id
+                var tempName = newGuest.tempName
+            }
+
             var r = ProtoMessage().apply {
                 this.messageType = "HELLO_BACK"
                 this.message = JSONObject.toJSONString(
-                    toMutableList
+                    object {
+                        var user_list = toMutableList
+                        var me = me
+                    }
                 )
             }
             ctx.channel().writeAndFlush(TextWebSocketFrame(JSONObject.toJSONString(r)))
+            e.put(newGuest.id!!, newGuest)
 
-            // room.reportSituation()
-        } else if (protoMessage.messageType == "CHAT") {
-            log.debug { "CHAT" }
 
-            var msgBody = protoMessage.message
-            var protoMessageEntity: Chat = JSONObject.parseObject(msgBody, Chat::class.java)
 
-            log.debug { "from ${protoMessageEntity.fromId} to ${protoMessageEntity.toId} msg: ${protoMessageEntity.msg}" }
+            Thread {
 
-            var map = Room.map
-            var e = map.get(protoMessageEntity.toId)
-            if (e == null) {
-                log.debug { "no such room" }
-            } else {
-                var to = e.get(protoMessageEntity.toId)
-                if (to != null) {
-                    ctx.channel().writeAndFlush(TextWebSocketFrame(msg.text()))
+                while (true) {
+                    if(!(ctx.channel().isActive && ctx.channel().isOpen))  {
+                        ctx.channel().close()
+                        break
+                    }
+
+                    Thread.sleep(2000)
+
+                    var iiid = "${ctx.channel().id()} - ${remoteIp}"
+                    log.debug { "Send alive ping to: ${iiid}" }
+                    ctx.channel().writeAndFlush(TextWebSocketFrame(JSONObject.toJSONString(
+                        object {
+                            var messageType = "ALIVE_PING"
+                        }
+                    ))).addListener {
+                        if(it.isSuccess) {
+                            Thread {
+                                log.debug { "Timeout 1s for ack" }
+                                Thread.sleep(1000)
+                                var i  = backMap.containsKey(ctx.channel().id().toString())
+                                if (!i) {
+                                    log.debug { "No ping ack received after 1s timeout, close the channel: ${iiid}" }
+                                    ctx.channel().close()
+                                }
+                                backMap.remove(ctx.channel().id().toString())
+                            }.start()
+                        }
+                    }
                 }
-            }
-        } else {
-            log.warn { "Server can not proccess this kind of msg: ${protoMessage.messageType}" }
-        }
+            }.start()
+
+        // room.reportSituation()
     }
+        else if (protoMessage.messageType == "ALIVE_ACK")
+        {
+            backMap.put(ctx.channel().id().toString(), "")
+        }
+        else if (protoMessage.messageType == "CHAT")
+        {
+        log.debug { "CHAT" }
+
+        var msgBody = protoMessage.message
+        var protoMessageEntity: Chat = JSONObject.parseObject(msgBody, Chat::class.java)
+
+        log.debug { "from ${protoMessageEntity.fromId} to ${protoMessageEntity.toId} msg: ${protoMessageEntity.msg}" }
+
+        var map = Room.map
+        var e = map.get(protoMessageEntity.toId)
+        if (e == null) {
+            log.debug { "no such room" }
+        } else {
+            var to = e.get(protoMessageEntity.toId)
+            if (to != null) {
+                ctx.channel().writeAndFlush(TextWebSocketFrame(msg.text()))
+            }
+        }
+    } else
+    {
+        log.warn { "Server can not proccess this kind of msg: ${protoMessage.messageType}" }
+    }
+}
 
 
 }

@@ -1,8 +1,20 @@
 <template>
     <div class="">
+        <div>
+            id: {{me.id}} name: {{me.tempName}}
+        </div>
         <div v-for="user in users">
-            <el-input v-model=user.input></el-input>
-            <el-button @click="send(user.id)"></el-button>
+            <div class="flex " style="width: 100%">
+                <div class="flexg1"><span>{{ user.id }}</span></div>
+                <div class="flexg1">
+                    <el-input v-model=user.input></el-input>
+                </div>
+                <div class="flexg1">
+                    <el-button @click="send(user.id)">send</el-button>
+                </div>
+
+            </div>
+
         </div>
     </div>
 </template>
@@ -17,27 +29,29 @@ import {tempIdentificationGenerator} from "@/ts/TempName";
 export default class WebSocketView extends Vue {
     webSocketClient: WebSocket | null = null;
     users: any[] = []
-    me : any = {}
+    me: any = {}
+
     send(id: string) {
         let t = this.users.find(user => user.id === id)
-        if(t != null) {
+        if (t != null) {
             let i = t.input
             this.webSocketClient?.send(JSON.stringify({
                 messageType: "MESSAGE",
                 message: JSON.stringify({
                     fromId: this.me.id,
                     toId: id,
-                    msg :i
+                    msg: i
                 })
             }));
         }
     }
+
     created() {
-        // this.webSocketClient = new WebSocket('ws://127.0.0.1:8080/chat');
+        this.webSocketClient = new WebSocket('ws://127.0.0.1:8080/chat');
         // this.webSocketClient = new WebSocket('ws://localhost:8080/chat');
         // this.webSocketClient = new WebSocket('ws://localhost1:8080/chat');
         // this.webSocketClient = new WebSocket('ws://172.27.128.180:8080/chat');
-        this.webSocketClient = new WebSocket('ws://49.232.155.160:40201/chat');
+        // this.webSocketClient = new WebSocket('ws://49.232.155.160:40201/chat');
 
         this.webSocketClient.onopen = () => {
             console.log('WebSocketClient connected');
@@ -84,31 +98,59 @@ export default class WebSocketView extends Vue {
         };
 
         this.webSocketClient.onmessage = (message) => {
-            notify(
-                null,
-                'Server',
-                message.data,
-                null,
-                true,
-            )
+
 
             let isjson = false
             let a
             try {
                 a = JSON.parse(message.data)
                 isjson = true
-            }catch (e) {
+            } catch (e) {
 
             }
 
-            if(isjson) {
+            if (isjson) {
+                debugger
                 let type = a.messageType
-                if(type === "HELLO_BACK") {
+                if (type === "HELLO_BACK") {
                     let b = JSON.parse(a.message)
-                    this.users = b
+                    console.log("come into room, roommates: ")
+                    b.user_list.forEach(
+                        (user: any) => {
+                            console.log({
+                                id: user.id,
+                                tempName: user.tempName
+                            })
+                        }
+                    )
+                    console.log("your identity: ", b.me)
+                    this.users = b.user_list
+                    this.me = b.me
                 }
-            } else {
-                console.log()
+                else if (type === "ALIVE_PING") {
+                    console.log("receive alive ping")
+                    this.webSocketClient?.send(JSON.stringify({
+                        messageType: "ALIVE_ACK"
+                    }));
+                }
+                else if (type === "HELLO") {
+
+                    let b = JSON.parse(a.message)
+                    console.log("new user comes into room: ", b)
+                    let newFri = b
+                    let e = this.users.find((user) => {
+                        return user.id === newFri.id
+                    })
+                    if (e == null) {
+                        this.users.push(newFri)
+                    }
+                } else if(type === "LEAVE") {
+                    let b = JSON.parse(a.message)
+                    console.log("user leaves room: ", b)
+                    this.users = this.users.filter((user) => {
+                        return user.id !== b.id
+                    })
+                }
             }
 
 
@@ -116,4 +158,7 @@ export default class WebSocketView extends Vue {
     }
 }
 </script>
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+
+@import "~@/style/common-style.scss";
+</style>
