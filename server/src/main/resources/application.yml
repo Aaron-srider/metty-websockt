@@ -26,3 +26,8 @@ logging:
             engine: info
       springframework: info
       springframework.context.support.PostProcessorRegistrationDelegate: warn
+  pattern:
+    console: "%white(%d{yyyyMMdd HHmmss}) %clr(%-5level) %white(%10.10thread) %white(%30.30logger{30}) %clr(%msg%n){magenta}"
+
+  main:
+    banner-mode: off

@@ -23,8 +23,8 @@ import java.net.InetSocketAddress
 class NettyServer(private val host: String, private val port: Int) {
     private val log = KotlinLogging.logger {}
     fun run() {
-        val bossGroup: EventLoopGroup = NioEventLoopGroup() // (1)
-        val workerGroup: EventLoopGroup = NioEventLoopGroup()
+        val bossGroup: EventLoopGroup = NioEventLoopGroup(CustomThreadFactory("belg-")) // (1)
+        val workerGroup: EventLoopGroup = NioEventLoopGroup(CustomThreadFactory("welg-"))
         try {
             val b = ServerBootstrap() // (2)
             b.group(bossGroup, workerGroup)
