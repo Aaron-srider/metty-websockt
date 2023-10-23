@@ -1,6 +1,7 @@
 import Vue from 'vue';
-import VueRouter, { RouteConfig } from 'vue-router';
+import VueRouter, {RouteConfig} from 'vue-router';
 import WebSocketView from "@/views/WebSocket.vue";
+
 Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
@@ -8,7 +9,7 @@ const routes: Array<RouteConfig> = [
         path: '/',
         redirect: '/websocket',
     },
-   {
+    {
         path: '/websocket',
         name: 'websocket',
         component: WebSocketView,

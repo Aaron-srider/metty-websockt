@@ -7,7 +7,7 @@
         </div>
         <template v-for="user in users">
             <div class="border" style="margin-bottom: 20px;">
-                <div class="pd10">PEER: {{user.device}}-{{ user.tempName }}-{{ user.id }}</div>
+                <div class="pd10">PEER: {{ user.device }}-{{ user.tempName }}-{{ user.id }}</div>
                 <div id="test" style="height: 120px; overflow-y: scroll; border: 1px solid black">
                     <div v-for="msg in user.msgs">
                         <div v-if="msg.type==='send'" style="background-color: #0aa858">
@@ -41,6 +41,7 @@ import {notify} from '@/ts/Notification';
 import {Component, Vue} from 'vue-property-decorator';
 import platform from 'platform';
 import {tempIdentificationGenerator} from "@/ts/TempName";
+import {PageLocation} from "@/ts/dynamicLocation";
 
 @Component({})
 export default class WebSocketView extends Vue {
@@ -80,7 +81,10 @@ export default class WebSocketView extends Vue {
     }
 
     created() {
-        this.webSocketClient = new WebSocket('ws://127.0.0.1:8080/chat');
+        let a = new PageLocation()
+        let w = a.hostname
+        let p = Number(a.port) + 1
+        this.webSocketClient = new WebSocket(`ws://${w}:${p}/chat`);
         // this.webSocketClient = new WebSocket('ws://localhost:8080/chat');
         // this.webSocketClient = new WebSocket('ws://localhost1:8080/chat');
         // this.webSocketClient = new WebSocket('ws://172.27.128.180:8080/chat');

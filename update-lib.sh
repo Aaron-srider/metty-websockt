@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -R server/target/lib
+rm -R target/lib
 
 mvn package
 
@@ -9,7 +9,7 @@ username="ubuntu"
 private_key_path="/home/chaowen/.ssh/common-key.pri"  # Replace with the path to your private key file
 command_to_execute="./run_jar.sh"  # Replace with the command you want to execute
 
-lib_path=server/target/lib
+lib_path=target/lib
 remote_lib_path=lib/
 
 
