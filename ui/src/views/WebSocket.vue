@@ -1,21 +1,38 @@
 <template>
     <div class="">
-        <div>
-            id: {{me.id}} name: {{me.tempName}}
+        <div class="mgb20">
+            <div>
+                ME: {{ me.device }}-{{ me.tempName }}-{{ me.id }}
+            </div>
         </div>
-        <div v-for="user in users">
-            <div class="flex " style="width: 100%">
-                <div class="flexg1"><span>{{ user.id }}</span></div>
+        <template v-for="user in users">
+            <div class="border" style="margin-bottom: 20px;">
+                <div class="pd10">PEER: {{user.device}}-{{ user.tempName }}-{{ user.id }}</div>
+                <div id="test" style="height: 120px; overflow-y: scroll; border: 1px solid black">
+                    <div v-for="msg in user.msgs">
+                        <div v-if="msg.type==='send'" style="background-color: #0aa858">
+                            <div style="white-space: pre-line">
+                                <div></div>
+                                {{ msg.msg }}
+                            </div>
+                        </div>
+                        <div v-else style="background-color: gray">
+                            <div style="white-space: pre-line">
+                                <div></div>
+                                {{ msg.msg }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="flexg1">
-                    <el-input v-model=user.input></el-input>
+                    <el-input type="textarea" v-model="user.input"></el-input>
                 </div>
                 <div class="flexg1">
                     <el-button @click="send(user.id)">send</el-button>
                 </div>
-
             </div>
 
-        </div>
+        </template>
     </div>
 </template>
 
@@ -43,7 +60,23 @@ export default class WebSocketView extends Vue {
                     msg: i
                 })
             }));
+            t.msgs.push({
+                peerId: id,
+                msg: i,
+                type: "send"
+            })
+            this.$nextTick(() => {
+                this.scrollToBottom(1)
+            })
         }
+    }
+
+    scrollToBottom(userId: any) {
+        // let o = getVueEl(this, `output-${userId}`)
+        // let t = o.querySelector('textarea') as HTMLTextAreaElement
+        // t.scrollTop = t.scrollHeight;
+        let test = document.getElementById("test")!!
+        test.scrollTop = test.scrollHeight;
     }
 
     created() {
@@ -110,7 +143,6 @@ export default class WebSocketView extends Vue {
             }
 
             if (isjson) {
-                debugger
                 let type = a.messageType
                 if (type === "HELLO_BACK") {
                     let b = JSON.parse(a.message)
@@ -124,16 +156,48 @@ export default class WebSocketView extends Vue {
                         }
                     )
                     console.log("your identity: ", b.me)
-                    this.users = b.user_list
+                    let l = b.user_list
+                    l.forEach((user: any) => {
+                        this.givePropertiesToNewUser(user)
+                    })
+                    this.users = l
+
                     this.me = b.me
-                }
-                else if (type === "ALIVE_PING") {
+                } else if (type === "ALIVE_PING") {
                     console.log("receive alive ping")
                     this.webSocketClient?.send(JSON.stringify({
                         messageType: "ALIVE_ACK"
                     }));
-                }
-                else if (type === "HELLO") {
+                } else if (type === "MESSAGE") {
+                    let b = JSON.parse(a.message)
+                    console.log("receive message from others", b)
+                    let f = b.fromId
+                    let t = b.toId
+                    let m = b.msg
+                    let e = this.users.find((user) => {
+                        return user.id === f
+                    })
+                    if (e != null) {
+                        e.msgs.push({
+                            peerId: f,
+                            msg: m,
+                            type: "receive"
+                        })
+
+                        let n = m + "\n"
+                        if (e.output == null) {
+                            e.output = n
+                        } else {
+                            e.output += n
+                        }
+                        this.$nextTick(() => {
+                            this.scrollToBottom(f)
+                        })
+                    }
+                    // this.webSocketClient?.send(JSON.stringify({
+                    //     messageType: "ALIVE_ACK"
+                    // }));
+                } else if (type === "HELLO") {
 
                     let b = JSON.parse(a.message)
                     console.log("new user comes into room: ", b)
@@ -142,9 +206,10 @@ export default class WebSocketView extends Vue {
                         return user.id === newFri.id
                     })
                     if (e == null) {
+                        this.givePropertiesToNewUser(newFri)
                         this.users.push(newFri)
                     }
-                } else if(type === "LEAVE") {
+                } else if (type === "LEAVE") {
                     let b = JSON.parse(a.message)
                     console.log("user leaves room: ", b)
                     this.users = this.users.filter((user) => {
@@ -153,9 +218,15 @@ export default class WebSocketView extends Vue {
                 }
             }
 
-
         };
     }
+
+    givePropertiesToNewUser(newUser: any) {
+        newUser.input = ""
+        newUser.output = ""
+        newUser.msgs = []
+    }
+
 }
 </script>
 <style lang="scss" scoped>

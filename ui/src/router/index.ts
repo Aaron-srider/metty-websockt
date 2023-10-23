@@ -1,25 +1,14 @@
 import Vue from 'vue';
 import VueRouter, { RouteConfig } from 'vue-router';
-import HelloWorld from '@/views/HelloWorld.vue';
-import About from '@/views/About.vue';
 import WebSocketView from "@/views/WebSocket.vue";
 Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
     {
         path: '/',
-        redirect: '/hello-world',
+        redirect: '/websocket',
     },
-    {
-        path: '/hello-world',
-        name: 'HelloWorld',
-        component: HelloWorld,
-    },
-    {
-        path: '/about',
-        name: 'About',
-        component: About,
-    },{
+   {
         path: '/websocket',
         name: 'websocket',
         component: WebSocketView,
