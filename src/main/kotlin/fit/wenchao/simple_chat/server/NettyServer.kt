@@ -15,6 +15,7 @@ import io.netty.handler.stream.ChunkedWriteHandler
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.net.InetSocketAddress
+import java.util.*
 
 /**
  * Discards any incoming data.
@@ -117,7 +118,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
         var remoteIp = a.address.hostAddress
         var id = ctx.channel().id().toString()
         log.debug {
-            "leaving: ${remoteIp}, ${id}"
+            "leaving: ${remoteIp}"
         }
 
         var map = Room.map
@@ -139,7 +140,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                                     this.messageType = "LEAVE"
                                     this.message = JSONObject.toJSONString(
                                         object {
-                                            var id = id
+                                            var id = ee.id
                                         }
                                     )
                                 }
@@ -156,9 +157,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
     var backMap = mutableMapOf<String, String>()
     override fun channelRead0(ctx: ChannelHandlerContext, msg: TextWebSocketFrame) {
 
-
-        val remoteAddress = ctx.channel().remoteAddress() as InetSocketAddress
-        var remoteIp = remoteAddress.address.hostAddress
+        var remoteIp = (ctx.channel().remoteAddress() as InetSocketAddress).address.hostAddress
         val protoMessage = JSONObject.parseObject(msg.text(), ProtoMessage::class.java)
         if (protoMessage.messageType == ProtoMessageType.HELLO.name) {
             var a =
@@ -171,10 +170,18 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
             var protoMessageEntity: Hello = JSONObject.parseObject(msgBody, Hello::class.java)
             log.debug { "Client HELLO: ${protoMessageEntity}" }
 
+            var guestId = ""
+            if (protoMessageEntity.id != null && protoMessageEntity.id != "") {
+                // old user
+                guestId = protoMessageEntity.id!!
+            } else {
+                // new user
+                guestId = UUID.randomUUID().toString() + System.currentTimeMillis()
+            }
 
             var newGuest = Guest().apply {
-                this.id = ctx.channel().id().toString()
-                this.tempName = protoMessageEntity.tempName
+                this.id = guestId
+                this.tempName = protoMessageEntity.tempName!!
                 this.ip = remoteIp
                 this.device = protoMessageEntity.osFamily
                 this.channel = ctx.channel()
@@ -242,7 +249,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                 )
             }
             ctx.channel().writeAndFlush(TextWebSocketFrame(JSONObject.toJSONString(r)))
-            e.put(newGuest.id!!, newGuest)
+            e.put(ctx.channel().id().toString(), newGuest)
 
             Thread {
 
@@ -289,13 +296,12 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
             log.debug { "from ${protoMessageEntity.fromId} to ${protoMessageEntity.toId} msg: ${protoMessageEntity.msg}" }
 
             var map = Room.map
-            var e = map.get(remoteIp)
-            if (e == null) {
+            var room = map.get(remoteIp)
+            if (room == null) {
                 log.debug { "no such room" }
             } else {
-                var to = e.get(protoMessageEntity.toId)
-                if (to != null) {
-                    to.channel!!.writeAndFlush(TextWebSocketFrame(msg.text()))
+                room.values.find { it.id == protoMessageEntity.toId }?.let {
+                    it.channel!!.writeAndFlush(TextWebSocketFrame(msg.text()))
                 }
             }
         } else {
@@ -317,13 +323,14 @@ class ProtoMessage {
 
 
 class Hello {
+    var id: String? = null
     var tempName: String? = null
     var osFamily: String? = null
     var osArch: String? = null
     var ua: String? = null
 
     override fun toString(): String {
-        return "Hello(tempName=$tempName, osFamily=$osFamily, osArch=$osArch, ua=$ua)"
+        return "Hello(id=$id, tempName=$tempName, osFamily=$osFamily, osArch=$osArch, ua=$ua)"
     }
 }
 
