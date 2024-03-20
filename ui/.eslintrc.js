@@ -24,6 +24,9 @@ module.exports = {
     // add your custom rules here
     // it is base on https://github.com/vuejs/eslint-config-vue
     rules: {
+        /* custom*/
+        'no-empty': 'off',
+        /* custom*/
         '@typescript-eslint/no-this-alias': 'off',
         '@typescript-eslint/no-explicit-any': 'off',
         // disallow noused methods to help clean out dead methods properties
