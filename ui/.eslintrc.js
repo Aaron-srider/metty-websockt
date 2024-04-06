@@ -24,6 +24,7 @@ module.exports = {
     // add your custom rules here
     // it is base on https://github.com/vuejs/eslint-config-vue
     rules: {
+        '@typescript-eslint/ban-ts-comment': 'off',
         /* custom*/
         'no-empty': 'off',
         /* custom*/

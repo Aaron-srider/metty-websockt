@@ -27,7 +27,67 @@ nav {
 </style>
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
+import cache from '@/ts/cache';
 
 @Component({})
-export default class App extends Vue {}
+export default class App extends Vue {
+    created() {
+        //  //  id, time, peer_id, msg, type(receive, send)
+        // cache
+        //     .setItem({
+        //         time: new Date().getTime(),
+        //         peer_id: 'jkafjklasf',
+        //         msg: 'jlsdjfasjdlkfasdf',
+        //         type: 'send',
+        //     })
+        //     .then((resp) => {
+        //         console.log('insert success');
+        //     })
+        //     .catch((err) => {
+        //         console.log(err);
+        //     });
+
+        cache.getAllKeys().then((resp) => {
+            console.log(resp);
+        });
+
+        cache
+            .filterRecords((cursor) => {
+                return true;
+            })
+            .then((resp) => {
+                console.log(resp);
+            });
+
+        cache
+            .getItem(2)
+            .then((resp) => {
+                console.log(resp);
+            })
+            .catch((err) => {
+                console.log(err);
+            });
+
+        cache.setItem({
+            time: new Date().getTime(),
+            peer_id: 'jkafjklasf',
+            msg: 'jlsdjfasjdlkfasdf',
+            type: 'send',
+            id: 2,
+        });
+
+        cache
+            .getItem(2)
+            .then((resp) => {
+                console.log(resp);
+            })
+            .catch((err) => {
+                console.log(err);
+            });
+
+        cache.getAllKeys().then((resp) => {
+            console.log(resp);
+        });
+    }
+}
 </script>

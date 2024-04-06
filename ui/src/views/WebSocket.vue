@@ -126,7 +126,7 @@ export default class WebSocketView extends Vue {
         this.webSocketClient = new WebSocket(`ws://${w}:${p}/chat`);
         // this.webSocketClient = new WebSocket('ws://localhost:8080/chat');
         // this.webSocketClient = new WebSocket('ws://localhost1:8080/chat');
-        this.webSocketClient = new WebSocket('ws://172.27.128.180:8081/chat');
+        this.webSocketClient = new WebSocket('ws://192.168.31.36:8081/chat');
         // this.webSocketClient = new WebSocket('ws://49.232.155.160:40201/chat');
 
         this.webSocketClient.onopen = () => {
