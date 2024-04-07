@@ -47,12 +47,12 @@ export default class App extends Vue {
         //         console.log(err);
         //     });
 
-        cache.getAllKeys().then((resp) => {
+        cache.getAllKeys('message').then((resp) => {
             console.log(resp);
         });
 
         cache
-            .filterRecords((cursor) => {
+            .filterRecords('message', (cursor) => {
                 return true;
             })
             .then((resp) => {
@@ -60,7 +60,7 @@ export default class App extends Vue {
             });
 
         cache
-            .getItem(2)
+            .getItem('message', 2)
             .then((resp) => {
                 console.log(resp);
             })
@@ -68,7 +68,7 @@ export default class App extends Vue {
                 console.log(err);
             });
 
-        cache.setItem({
+        cache.setItem('message', {
             time: new Date().getTime(),
             peer_id: 'jkafjklasf',
             msg: 'jlsdjfasjdlkfasdf',
@@ -77,7 +77,7 @@ export default class App extends Vue {
         });
 
         cache
-            .getItem(2)
+            .getItem('message', 2)
             .then((resp) => {
                 console.log(resp);
             })
@@ -85,7 +85,7 @@ export default class App extends Vue {
                 console.log(err);
             });
 
-        cache.getAllKeys().then((resp) => {
+        cache.getAllKeys('message').then((resp) => {
             console.log(resp);
         });
     }

@@ -15,7 +15,6 @@ import io.netty.handler.stream.ChunkedWriteHandler
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.net.InetSocketAddress
-import java.util.*
 
 /**
  * Discards any incoming data.
@@ -64,7 +63,7 @@ class NettyServer(private val host: String, private val port: Int) {
 data class Guest(
     var device: String? = null,
     var channel: Channel? = null,
-    var id: String? = null,
+    var uid: String? = null,
     var tempName: String? = null,
     var ip: String? = null,
 ) {
@@ -116,7 +115,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
 
         var a = ctx.channel().remoteAddress() as InetSocketAddress
         var remoteIp = a.address.hostAddress
-        var id = ctx.channel().id().toString()
+        var channel_id = ctx.channel().id().toString()
         log.debug {
             "leaving: ${remoteIp}"
         }
@@ -126,11 +125,11 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
         if (e == null) {
             log.debug { "no such room" }
         } else {
-            var ee = e.get(id)
+            var ee = e.get(channel_id)
             if (ee != null) {
                 log.debug { "leaving: ${ee}" }
                 ee.channel?.close()
-                e.remove(id)
+                e.remove(channel_id)
                 e.forEach {
                     var g = it.value.channel
                     if (g != null) {
@@ -140,7 +139,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                                     this.messageType = "LEAVE"
                                     this.message = JSONObject.toJSONString(
                                         object {
-                                            var id = ee.id
+                                            var uid = ee.uid
                                         }
                                     )
                                 }
@@ -170,17 +169,10 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
             var protoMessageEntity: Hello = JSONObject.parseObject(msgBody, Hello::class.java)
             log.debug { "Client HELLO: ${protoMessageEntity}" }
 
-            var guestId = ""
-            if (protoMessageEntity.id != null && protoMessageEntity.id != "") {
-                // old user
-                guestId = protoMessageEntity.id!!
-            } else {
-                // new user
-                guestId = UUID.randomUUID().toString() + System.currentTimeMillis()
-            }
+            var guestId = protoMessageEntity.uid!!
 
             var newGuest = Guest().apply {
-                this.id = guestId
+                this.uid = guestId
                 this.tempName = protoMessageEntity.tempName!!
                 this.ip = remoteIp
                 this.device = protoMessageEntity.osFamily
@@ -212,7 +204,7 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
                                     this.messageType = "HELLO"
                                     this.message = JSONObject.toJSONString(
                                         object {
-                                            var id = newGuest.id
+                                            var uid = newGuest.uid
                                             var tempName = newGuest.tempName
                                             var device = newGuest.device
                                         }
@@ -227,14 +219,14 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
 
             val toMutableList = e.values.map {
                 object {
-                    var id = it.id
+                    var uid = it.uid
                     var tempName = it.tempName
                     var device = it.device
                 }
             }
 
             var me = object {
-                var id = newGuest.id
+                var uid = newGuest.uid
                 var tempName = newGuest.tempName
                 var device = newGuest.device
             }
@@ -293,14 +285,14 @@ class ServerHandler : SimpleChannelInboundHandler<TextWebSocketFrame>() {
             var msgBody = protoMessage.message
             var protoMessageEntity: Chat = JSONObject.parseObject(msgBody, Chat::class.java)
 
-            log.debug { "from ${protoMessageEntity.fromId} to ${protoMessageEntity.toId} msg: ${protoMessageEntity.msg}" }
+            log.debug { "from ${protoMessageEntity.fromUid} to ${protoMessageEntity.toUid} msg: ${protoMessageEntity.msg}" }
 
             var map = Room.map
             var room = map.get(remoteIp)
             if (room == null) {
                 log.debug { "no such room" }
             } else {
-                room.values.find { it.id == protoMessageEntity.toId }?.let {
+                room.values.find { it.uid == protoMessageEntity.toUid }?.let {
                     it.channel!!.writeAndFlush(TextWebSocketFrame(msg.text()))
                 }
             }
@@ -323,26 +315,21 @@ class ProtoMessage {
 
 
 class Hello {
-    var id: String? = null
+    var uid: String? = null
     var tempName: String? = null
     var osFamily: String? = null
     var osArch: String? = null
     var ua: String? = null
 
     override fun toString(): String {
-        return "Hello(id=$id, tempName=$tempName, osFamily=$osFamily, osArch=$osArch, ua=$ua)"
+        return "Hello(uid=$uid, tempName=$tempName, osFamily=$osFamily, osArch=$osArch, ua=$ua)"
     }
-}
-
-class HelloBack {
-    var id: String? = null
-    var tempName: String? = null
 }
 
 class Chat {
     var msg: String? = null
-    var fromId: String? = null
-    var toId: String? = null
+    var fromUid: String? = null
+    var toUid: String? = null
 }
 
 

@@ -27,15 +27,41 @@ class Cache {
                 //  id, time, peer_id, msg, type(receive, send)
                 // inline-key, with generator, see:
                 // https://stackoverflow.com/questions/36016862/indexeddb-dataerror-data-provided-to-an-operation-does-not-meet-requirements
-                db.createObjectStore('messages', {
+                db.createObjectStore('message', {
+                    keyPath: 'id',
+                    autoIncrement: true,
+                });
+
+                db.createObjectStore('user', {
+                    keyPath: 'id',
+                    autoIncrement: true,
+                });
+
+                db.createObjectStore('config', {
                     keyPath: 'id',
                     autoIncrement: true,
                 });
             } else {
                 // if tables are not empty, do other things, like re-create these tables
                 if (names.contains('messages')) {
-                    db.deleteObjectStore('messages');
-                    db.createObjectStore('messages', {
+                    db.deleteObjectStore('message');
+                    db.createObjectStore('message', {
+                        keyPath: 'id',
+                        autoIncrement: true,
+                    });
+                }
+
+                if (names.contains('user')) {
+                    db.deleteObjectStore('user');
+                    db.createObjectStore('user', {
+                        keyPath: 'id',
+                        autoIncrement: true,
+                    });
+                }
+
+                if (names.contains('config')) {
+                    db.deleteObjectStore('config');
+                    db.createObjectStore('config', {
                         keyPath: 'id',
                         autoIncrement: true,
                     });
@@ -52,6 +78,7 @@ class Cache {
      * @returns if success, the promise brings back the list of records(full fields)
      */
     filterRecords(
+        table_name: string,
         predicate: (cursor: IDBCursorWithValue) => boolean,
     ): Promise<any[]> {
         return new Promise((resolve, reject) => {
@@ -59,8 +86,8 @@ class Cache {
             openRequest.onsuccess = function (event) {
                 // @ts-ignore
                 let db = event.target.result;
-                let transaction = db.transaction(['messages'], 'readonly');
-                let objectStore = transaction.objectStore('messages');
+                let transaction = db.transaction([table_name], 'readonly');
+                let objectStore = transaction.objectStore(table_name);
                 const getRequest = objectStore.openCursor();
 
                 getRequest.onerror = function (event) {
@@ -96,14 +123,14 @@ class Cache {
      * @param key
      * @returns the promise brings back the record(full fields),if the record does not exist, return null;
      */
-    getItem(key: number) {
+    getItem(table_name: string, key: number) {
         return new Promise((resolve, reject) => {
             let openRequest = this.open_database(dbname, version, reject);
             openRequest.onsuccess = function (event) {
                 // @ts-ignore
                 let db = event.target.result;
-                let transaction = db.transaction(['messages'], 'readonly');
-                let objectStore = transaction.objectStore('messages');
+                let transaction = db.transaction([table_name], 'readonly');
+                let objectStore = transaction.objectStore(table_name);
                 let getRequest = objectStore.get(key);
 
                 getRequest.onerror = function (event) {
@@ -131,14 +158,14 @@ class Cache {
      * create or update a record; if the record with the key does not exist, create it; otherwise, update it
      * @param entity the record to be created or updated, may contain the key
      */
-    setItem(entity: any) {
+    setItem(table_name: string, entity: any) {
         return new Promise((resolve, reject) => {
             let openRequest = this.open_database(dbname, version, reject);
             openRequest.onsuccess = function (event) {
                 // @ts-ignore
                 let db = event.target.result;
-                let transaction = db.transaction(['messages'], 'readwrite');
-                let store = transaction.objectStore('messages');
+                let transaction = db.transaction([table_name], 'readwrite');
+                let store = transaction.objectStore(table_name);
 
                 // inline-key, store directly
                 let request = store.put(entity);
@@ -161,15 +188,15 @@ class Cache {
         });
     }
 
-    getAllKeys(): Promise<any[]> {
+    getAllKeys(table_name: string): Promise<any[]> {
         return new Promise((resolve, reject) => {
             let openRequest = this.open_database(dbname, version, reject);
             openRequest.onsuccess = function (event) {
                 // @ts-ignore
                 let db = event.target.result;
 
-                let transaction = db.transaction(['messages'], 'readonly');
-                let store = transaction.objectStore('messages');
+                let transaction = db.transaction([table_name], 'readonly');
+                let store = transaction.objectStore(table_name);
                 let request = store.getAllKeys();
 
                 request.onerror = function (event) {
@@ -188,15 +215,15 @@ class Cache {
         });
     }
 
-    removeItem(key) {
+    removeItem(table_name: string, key: any) {
         return new Promise<void>((resolve, reject) => {
             let openRequest = this.open_database(dbname, version, reject);
             openRequest.onsuccess = function (event) {
                 // @ts-ignore
                 let db = event.target.result;
 
-                let transaction = db.transaction(['messages'], 'readwrite');
-                let store = transaction.objectStore('messages');
+                let transaction = db.transaction([table_name], 'readwrite');
+                let store = transaction.objectStore(table_name);
                 let request = store.delete(key);
 
                 request.onerror = function (event) {

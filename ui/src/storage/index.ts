@@ -1,61 +1,86 @@
-export function get_all_users(): any[] {
-    let users = localStorage.getItem("users")
-    if (users === null) {
-        return [] as any[];
-    }
-    return JSON.parse(users)
+import cache from '@/ts/cache';
+
+// export function get_all_users(): any[] {
+//     let users = localStorage.getItem('users');
+//     if (users === null) {
+//         return [] as any[];
+//     }
+//     return JSON.parse(users);
+// }
+
+export function get_all_users_from_db(): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+        cache
+            .getAllKeys('user')
+            .then((keys) => {
+                return keys;
+            })
+            .then((keys) => {
+                return cache.filterRecords('user', (cursor) => {
+                    return keys.includes(cursor.key);
+                });
+            })
+            .then((resp) => {
+                resolve(resp);
+            })
+            .catch((err) => reject(err));
+    });
 }
 
-export function get_user_by_id(id: string) {
-    let users = get_all_users()
-    return users.find(user => user.id === id)
+export function delete_user_by_id_from_db(id: any) {
+    cache.removeItem('user', id);
 }
 
-export function delete_user_by_id(id: string) {
-    let users = get_all_users()
-    let new_users = users.filter(user => user.id !== id)
-    localStorage.setItem("users", JSON.stringify(new_users))
+// export function delete_user_by_id(id: string) {
+//     let users = get_all_users();
+//     let new_users = users.filter((user) => user.id !== id);
+//     localStorage.setItem('users', JSON.stringify(new_users));
+// }
+
+export function add_user_to_db(user: any) {
+    cache.setItem('user', {
+        ...user,
+    });
 }
 
-export function add_user(user: any) {
-    let users = get_all_users()
-    users.push(user)
-    localStorage.setItem("users", JSON.stringify(users))
+/**
+ * get me from config table, if me is not exist, null, otherwise returns me object described below:
+ *
+ * {
+ *     id: string,
+ *     tempName: string,
+ *     device: string,
+ * }
+ */
+export function get_me_from_db() {
+    return new Promise((resolve, reject) => {
+        cache
+            .filterRecords('config', (cursor) => {
+                return cursor.value.key === 'me';
+            })
+            .then((resp) => {
+                if (resp.length === 0) {
+                    resolve(null);
+                } else {
+                    resolve(resp[0].value);
+                }
+            })
+            .catch((err) => {
+                reject(err);
+            });
+    });
 }
 
-export function update_user(user: any) {
-    let users = get_all_users()
-    let new_users = users.map(u => {
-        if (u.id === user.id) {
-            return user
-        }
-        return u
-    })
-    localStorage.setItem("users", JSON.stringify(new_users))
-}
-
-export function get_me() {
-    let local_id = localStorage.getItem("me")
-    if (local_id == null) {
-        return null
-    }
-    return JSON.parse(local_id)
-}
-
-export function set_me(me: any) {
-    localStorage.setItem("me", JSON.stringify(me))
-}
-
-export function add_msg_to_user_by_id(id: string, msg: any) {
-    let users = get_all_users()
-    let new_users = users.map(u => {
-        if (u.id === id) {
-            if(u.msgs === undefined || u.msgs === null) {
-                u.msgs = []
-            }
-            u.msgs.push(msg)
-        }
-        return u
-    })
-    localStorage.setItem("users", JSON.stringify(new_users))
+export function set_me_to_db(me: any) {
+    cache
+        .setItem('config', {
+            key: 'me',
+            value: me,
+        })
+        .then(() => {
+            console.log('me set');
+        })
+        .catch((err) => {
+            console.log(err);
+        });
 }
