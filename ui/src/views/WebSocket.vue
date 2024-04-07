@@ -65,6 +65,16 @@ import platform from 'platform';
 import { tempIdentificationGenerator } from '@/ts/TempName';
 import { PageLocation } from '@/ts/dynamicLocation';
 import * as storage from '@/storage';
+import cache from '@/ts/cache';
+
+export class MsgModel {
+    local_id = '';
+    peer_id = '';
+    time = 0;
+    msg = '';
+    // send or receive
+    type = '';
+}
 
 @Component({})
 export default class WebSocketView extends Vue {
@@ -87,13 +97,21 @@ export default class WebSocketView extends Vue {
                 }),
             );
             let msg = {
+                local_id: this.me.id,
                 time: new Date().getTime(),
-                peerId: user_id,
+                peer_id: user_id,
                 msg: user_input,
                 type: 'send',
             };
             user.msgs.push(msg);
             storage.add_msg_to_user_by_id(user_id, msg);
+            cache.setItem({
+                local_id: this.me.id,
+                time: new Date().getTime(),
+                peer_id: user_id,
+                msg: user_input,
+                type: 'send',
+            });
             this.$nextTick(() => {
                 this.scrollToBottom(1);
             });
@@ -123,10 +141,11 @@ export default class WebSocketView extends Vue {
         let a = new PageLocation();
         let w = a.hostname;
         let p = Number(a.port) + 1;
-        this.webSocketClient = new WebSocket(`ws://${w}:${p}/chat`);
-        // this.webSocketClient = new WebSocket('ws://localhost:8080/chat');
+        // this.webSocketClient = new WebSocket(`ws://${w}:${p}/chat`);
         // this.webSocketClient = new WebSocket('ws://localhost1:8080/chat');
-        this.webSocketClient = new WebSocket('ws://192.168.31.36:8081/chat');
+        // this.webSocketClient = new WebSocket('ws://localhost:8080/chat');
+        this.webSocketClient = new WebSocket('ws://172.27.128.180:8081/chat');
+        // this.webSocketClient = new WebSocket('ws://192.168.31.36:8081/chat');
         // this.webSocketClient = new WebSocket('ws://49.232.155.160:40201/chat');
 
         this.webSocketClient.onopen = () => {
@@ -144,6 +163,7 @@ export default class WebSocketView extends Vue {
             let me = storage.get_me();
 
             if (me === null) {
+                this.me = null;
                 this.webSocketClient?.send(
                     JSON.stringify({
                         messageType: 'HELLO',
@@ -156,6 +176,7 @@ export default class WebSocketView extends Vue {
                     }),
                 );
             } else {
+                this.me = me;
                 this.webSocketClient?.send(
                     JSON.stringify({
                         messageType: 'HELLO',
@@ -191,56 +212,65 @@ export default class WebSocketView extends Vue {
             if (isjson) {
                 let type = a.messageType;
                 if (type === 'HELLO_BACK') {
-                    let b = JSON.parse(a.message);
-                    console.log('come into room, roommates: ');
+                    let response_entity = JSON.parse(a.message);
 
+                    console.debug('come into room, roommates: ');
+                    let room_users_from_server = response_entity.user_list;
                     let users_from_storage = storage.get_all_users();
-                    users_from_storage.forEach((it) => (it.online = false));
-                    b.user_list.forEach((it: any) => (it.online = false));
 
-                    // add new users to store if not exist
-                    b.user_list.forEach((user: any) => {
+                    room_users_from_server.forEach((it) => (it.online = false));
+                    users_from_storage.forEach((it) => (it.online = false));
+
+                    // record new users to local store if not exist
+                    room_users_from_server.forEach((user: any) => {
                         let u = users_from_storage.find((u: any) => {
                             return u.id === user.id;
                         });
                         if (u == null) {
+                            // user in the room but not on the local sheet, record it down to local
                             users_from_storage.push(user);
                             user.online = true;
                         } else {
+                            // user in the room already recorded in local sheet
                             u.online = true;
                         }
                     });
-
-                    let me = storage.get_me();
-                    let remote_me = b.me;
-                    if (me === null) {
-                        storage.set_me(remote_me);
-                        this.me = remote_me;
-                    } else {
-                        this.me = {
-                            ...remote_me,
-                            id: me.id,
-                            tempName: me.tempName,
-                        };
-                    }
-
-                    // filter me
-                    b.user_list = b.user_list.filter(
-                        (it: any) => it.id !== this.me.id,
-                    );
 
                     localStorage.setItem(
                         'users',
                         JSON.stringify(users_from_storage),
                     );
 
-                    console.log('your identity: ', b.me);
-                    let l = users_from_storage;
-                    l.forEach((user: any) => {
+                    // record my identity
+                    if (this.me === null) {
+                        // this is the first time this client visits the server, store the me to local
+                        let remote_me = response_entity.me;
+                        storage.set_me(remote_me);
+                        this.me = remote_me;
+                    }
+                    console.debug('your identity: ', this.me);
+
+                    users_from_storage.forEach((user: any) => {
                         this.givePropertiesToNewUser(user);
                     });
-                    l = l.filter((it: any) => it.id !== me.id);
-                    this.users = l;
+
+                    // do not display myself
+                    users_from_storage = users_from_storage.filter(
+                        (it: any) => it.id !== this.me.id,
+                    );
+                    this.users = users_from_storage;
+
+                    users_from_storage.forEach((user) => {
+                        cache
+                            .filterRecords((cursor) => {
+                                return cursor.value.peer_id === user.id;
+                            })
+                            .then((resp) => {
+                                resp.forEach((record) => {
+                                    user.msgs.push(record);
+                                });
+                            });
+                    });
                 } else if (type === 'ALIVE_PING') {
                     console.log('receive alive ping');
                     this.webSocketClient?.send(
@@ -260,17 +290,25 @@ export default class WebSocketView extends Vue {
                     if (e != null) {
                         e.msgs.push({
                             time: new Date().getTime(),
-                            peerId: f,
+                            peer_id: f,
                             msg: m,
                             type: 'receive',
                         });
 
-                        storage.add_msg_to_user_by_id(f, {
+                        cache.setItem({
+                            local_id: this.me.id,
                             time: new Date().getTime(),
-                            peerId: f,
+                            peer_id: f,
                             msg: m,
                             type: 'receive',
                         });
+
+                        // storage.add_msg_to_user_by_id(f, {
+                        //     time: new Date().getTime(),
+                        //     peer_id: f,
+                        //     msg: m,
+                        //     type: 'receive',
+                        // });
 
                         let n = m + '\n';
                         if (e.output == null) {
